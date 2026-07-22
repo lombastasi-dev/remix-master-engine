@@ -1,5 +1,6 @@
 import io
 import re
+import asyncio
 import streamlit as st
 import docx
 from docx import Document
@@ -9,6 +10,7 @@ from openai import OpenAI
 from fpdf import FPDF
 import ebooklib
 from ebooklib import epub
+import edge_tts
 from src.intelligence.domains import DomainType, DOMAIN_REGISTRY, get_domain_profile
 
 st.set_page_config(page_title='REMIX-MASTER Control Room', page_icon='📚', layout='wide')
@@ -40,11 +42,18 @@ def generate_back_matter(author_name, book_title):
     return f'''\n\n---\n\n### About the Author\n**{author_name}** is an author and domain practitioner dedicated to transforming complex ideas into clear, actionable frameworks.\n\n### Reader Call to Action\nThank you for reading **{book_title}**! If you found value in this work, please consider leaving an honest review on Amazon or GoodReads. Your feedback helps other readers discover this book.\n\n### Recommended Next Steps\n* Connect with the author for additional resources and updates.\n* Join the community newsletter for upcoming releases and exclusive bonus materials.\n'''
 
 def split_text_into_chapters(text):
-    # Split text on top-level markdown headings (# Chapter or ## Chapter)
     pattern = r'(?=\n(?=#{1,2}\s))'
     chunks = re.split(pattern, text)
     chapters = [c.strip() for c in chunks if c.strip()]
     return chapters if chapters else [text]
+
+async def generate_audio_preview(text_sample, voice='en-US-ChristopherNeural'):
+    communicate = edge_tts.Communicate(text_sample, voice)
+    audio_data = b''
+    async for chunk in communicate.stream():
+        if chunk['type'] == 'audio':
+            audio_data += chunk['data']
+    return audio_data
 
 def generate_adaptation_with_fallback(prompt):
     openrouter_key = st.secrets.get('OPENROUTER_API_KEY')
@@ -121,3 +130,19 @@ if uploaded_files:
         st.subheader('✨ Final Compiled Master Manuscript')
         st.markdown(st.session_state['generated_text'][:3000] + '\n\n*(Preview truncated for display...)*')
         st.download_button('💾 Download Full Master Manuscript (.md)', data=st.session_state['generated_text'], file_name='master_manuscript.md')
+        
+        st.divider()
+        st.subheader('🎙️ Audiobook Sample Preview (TTS)')
+        st.caption('Preview the spoken narration tone for your manuscript before exporting full audio script files.')
+        
+        voice_option = st.selectbox('Select Narrator Voice', ['en-US-ChristopherNeural', 'en-US-JennyNeural', 'en-GB-SoniaNeural', 'en-AU-WilliamNeural'])
+        clean_sample = re.sub(r'[#\*\-_]', '', st.session_state['generated_text'][:500])
+        
+        if st.button('🎧 Generate & Play Audio Sample'):
+            with st.spinner('Synthesizing speech sample...'):
+                try:
+                    audio_bytes = asyncio.run(generate_audio_preview(clean_sample, voice=voice_option))
+                    st.audio(audio_bytes, format='audio/mp3')
+                    st.success('✓ Audio preview ready!')
+                except Exception as tts_err:
+                    st.error(f'Audio generation failed: {tts_err}')
