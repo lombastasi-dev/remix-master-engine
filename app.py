@@ -1,5 +1,6 @@
 import io
 import re
+import json
 import asyncio
 import streamlit as st
 import docx
@@ -11,6 +12,7 @@ from fpdf import FPDF
 import ebooklib
 from ebooklib import epub
 import edge_tts
+from PIL import Image, ImageDraw, ImageFont
 from src.intelligence.domains import DomainType, DOMAIN_REGISTRY, get_domain_profile
 
 st.set_page_config(page_title='REMIX-MASTER Control Room', page_icon='📚', layout='wide')
@@ -46,6 +48,21 @@ def split_text_into_chapters(text):
     chunks = re.split(pattern, text)
     chapters = [c.strip() for c in chunks if c.strip()]
     return chapters if chapters else [text]
+
+def create_cover_image(title, subtitle, author, domain_name):
+    width, height = 800, 1200
+    img = Image.new('RGB', (width, height), color='#1a252c')
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([20, 20, width - 20, height - 20], outline='#2c5282', width=5)
+    draw.text((width / 2, 120), domain_name.upper(), fill='#63b3ed', anchor='mm')
+    draw.text((width / 2, 350), title, fill='#ffffff', anchor='mm')
+    draw.text((width / 2, 450), subtitle, fill='#cbd5e0', anchor='mm')
+    draw.line([(150, 700), (650, 700)], fill='#2c5282', width=3)
+    draw.text((width / 2, 950), f'BY {author.upper()}', fill='#ffffff', anchor='mm')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return buf
 
 async def generate_audio_preview(text_sample, voice='en-US-ChristopherNeural'):
     communicate = edge_tts.Communicate(text_sample, voice)
@@ -87,6 +104,7 @@ st.sidebar.success(f'Active Domain: **{profile.display_name}**')
 st.sidebar.divider()
 st.sidebar.header('📖 Publishing Metadata')
 book_title = st.sidebar.text_input('Book Title', value='The Master Blueprint')
+book_subtitle = st.sidebar.text_input('Book Subtitle', value='A Complete Guide to Mastery')
 author_name = st.sidebar.text_input('Author Name', value='Alex Vance')
 publisher_name = st.sidebar.text_input('Publisher Name', value='Apex Press')
 target_tone = st.sidebar.selectbox('Target Tone', ['Executive Brief', 'Conversational & Engaging', 'Academic & Formal', 'Technical Direct'])
@@ -132,9 +150,31 @@ if uploaded_files:
         st.download_button('💾 Download Full Master Manuscript (.md)', data=st.session_state['generated_text'], file_name='master_manuscript.md')
         
         st.divider()
-        st.subheader('🎙️ Audiobook Sample Preview (TTS)')
-        st.caption('Preview the spoken narration tone for your manuscript before exporting full audio script files.')
+        st.subheader('🎨 Cover Blueprint & KDP Metadata Package')
+        col_cov1, col_cov2 = st.columns([1, 2])
         
+        with col_cov1:
+            cover_buf = create_cover_image(book_title, book_subtitle, author_name, profile.display_name)
+            st.image(cover_buf, caption='Generated Front Cover Blueprint', use_container_width=True)
+            st.download_button('📥 Download Cover Image (.png)', data=cover_buf.getvalue(), file_name='cover_blueprint.png', mime='image/png')
+            
+        with col_cov2:
+            metadata_pkg = {
+                'title': book_title,
+                'subtitle': book_subtitle,
+                'author': author_name,
+                'publisher': publisher_name,
+                'domain_niche': profile.display_name,
+                'primary_focus': profile.primary_focus,
+                'target_tone': target_tone,
+                'suggested_keywords': [profile.display_name, 'Guide', 'Handbook', 'Mastery', 'Strategy'],
+                'language': 'English'
+            }
+            st.json(metadata_pkg)
+            st.download_button('📥 Download KDP Metadata Package (.json)', data=json.dumps(metadata_pkg, indent=2), file_name='kdp_metadata.json', mime='application/json')
+        
+        st.divider()
+        st.subheader('🎙️ Audiobook Sample Preview (TTS)')
         voice_option = st.selectbox('Select Narrator Voice', ['en-US-ChristopherNeural', 'en-US-JennyNeural', 'en-GB-SoniaNeural', 'en-AU-WilliamNeural'])
         clean_sample = re.sub(r'[#\*\-_]', '', st.session_state['generated_text'][:500])
         

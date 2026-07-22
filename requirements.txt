@@ -8,3 +8,5 @@ fpdf2
 ebooklib
 
 edge-tts
+
+Pillow
