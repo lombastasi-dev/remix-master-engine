@@ -4,3 +4,4 @@ python-docx
 pydantic
 google-generativeai
 openai
+weasyprint

@@ -5,6 +5,7 @@ from docx import Document
 import pypdf
 import google.generativeai as genai
 from openai import OpenAI
+from weasyprint import HTML, CSS
 from src.intelligence.domains import DomainType, DOMAIN_REGISTRY, get_domain_profile
 
 # Page Configuration
@@ -63,6 +64,109 @@ def create_docx_from_markdown(text, domain_name):
             
     buffer = io.BytesIO()
     doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+def create_pdf_from_markdown(text, domain_name):
+    """Convert generated markdown into a publication-ready PDF via WeasyPrint HTML/CSS."""
+    html_body = []
+    for line in text.split("\n"):
+        line_s = line.strip()
+        if not line_s:
+            continue
+        if line_s.startswith("# "):
+            html_body.append(f"<h1>{line_s[2:]}</h1>")
+        elif line_s.startswith("## "):
+            html_body.append(f"<h2>{line_s[3:]}</h2>")
+        elif line_s.startswith("### "):
+            html_body.append(f"<h3>{line_s[4:]}</h3>")
+        elif line_s.startswith("- ") or line_s.startswith("* "):
+            html_body.append(f"<li>{line_s[2:]}</li>")
+        else:
+            html_body.append(f"<p>{line_s}</p>")
+
+    content_html = "\n".join(html_body)
+
+    html_template = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            @page {{
+                size: A4;
+                margin: 20mm 15mm;
+                background-color: #faf9f6;
+            }}
+            body {{
+                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+                color: #2b2b2b;
+                line-height: 1.6;
+                font-size: 11pt;
+                margin: 0;
+                padding: 0;
+            }}
+            .header-banner {{
+                background-color: #1a252c;
+                color: #ffffff;
+                padding: 20px 25px;
+                margin-top: -20mm;
+                margin-left: -15mm;
+                margin-right: -15mm;
+                margin-bottom: 25px;
+            }}
+            .header-banner h1 {{
+                font-size: 18pt;
+                margin: 0;
+                padding: 0;
+                color: #ffffff;
+                border: none;
+            }}
+            .header-banner p {{
+                font-size: 10pt;
+                color: #a0aec0;
+                margin: 5px 0 0 0;
+            }}
+            h1 {{
+                color: #1a252c;
+                font-size: 16pt;
+                border-bottom: 2px solid #3182ce;
+                padding-bottom: 4px;
+                margin-top: 20px;
+            }}
+            h2 {{
+                color: #2c5282;
+                font-size: 13pt;
+                margin-top: 16px;
+            }}
+            h3 {{
+                color: #4a5568;
+                font-size: 11pt;
+                font-style: italic;
+            }}
+            p {{
+                margin-bottom: 12px;
+                text-align: justify;
+            }}
+            li {{
+                margin-bottom: 6px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header-banner">
+            <h1>REMIX-MASTER Remastered Manuscript</h1>
+            <p>Domain: {domain_name} | Publication Adaptation</p>
+        </div>
+        <div class="content">
+            {content_html}
+        </div>
+    </body>
+    </html>
+    """
+
+    buffer = io.BytesIO()
+    HTML(string=html_template).write_pdf(buffer)
     buffer.seek(0)
     return buffer
 
@@ -143,7 +247,6 @@ custom_elements_input = st.sidebar.text_input(
     help="Add additional custom section headings to check for in the audit."
 )
 
-# Merge default profile elements with user custom elements
 all_required_elements = list(profile.required_elements)
 if custom_elements_input.strip():
     user_customs = [e.strip() for e in custom_elements_input.split(",") if e.strip()]
@@ -275,12 +378,12 @@ Please generate an adapted executive summary in the requested tone ({target_tone
         st.divider()
         st.subheader("💾 Export Multi-Pack")
         
-        ec1, ec2 = st.columns(2)
+        ec1, ec2, ec3 = st.columns(3)
         
         with ec1:
             docx_buffer = create_docx_from_markdown(st.session_state['generated_text'], profile.display_name)
             st.download_button(
-                label="📄 Download as Word Document (.docx)",
+                label="📄 Download as Word (.docx)",
                 data=docx_buffer,
                 file_name=f"remastered_{domain_choice.value}_batch.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -295,6 +398,19 @@ Please generate an adapted executive summary in the requested tone ({target_tone
                 mime="text/markdown",
                 use_container_width=True
             )
+
+        with ec3:
+            try:
+                pdf_buffer = create_pdf_from_markdown(st.session_state['generated_text'], profile.display_name)
+                st.download_button(
+                    label="📕 Download as PDF (.pdf)",
+                    data=pdf_buffer,
+                    file_name=f"remastered_{domain_choice.value}_batch.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            except Exception as pdf_err:
+                st.warning(f"PDF generation unavailable: {pdf_err}")
 
 else:
     st.info("Please upload one or more `.docx` / `.pdf` manuscript files to proceed.")
