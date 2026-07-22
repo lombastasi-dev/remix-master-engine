@@ -90,7 +90,7 @@ class PublicationPDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
 
 def create_pdf_from_markdown(text, domain_name):
-    """Convert generated markdown into a publication PDF using FPDF2."""
+    """Convert generated markdown into a publication PDF using FPDF2 cleanly."""
     pdf = PublicationPDF(domain_name)
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -103,31 +103,32 @@ def create_pdf_from_markdown(text, domain_name):
             continue
             
         line_clean = line_s.encode('latin-1', 'replace').decode('latin-1')
+        pdf.set_x(pdf.l_margin) # Reset X position to avoid horizontal space calculation errors
 
         if line_clean.startswith("# "):
             pdf.set_font("Helvetica", "B", 16)
             pdf.set_text_color(26, 37, 44)
             pdf.ln(4)
-            pdf.multi_cell(0, 8, line_clean[2:])
+            pdf.multi_cell(pdf.epw, 8, line_clean[2:])
             pdf.ln(2)
         elif line_clean.startswith("## "):
             pdf.set_font("Helvetica", "B", 13)
             pdf.set_text_color(44, 82, 130)
             pdf.ln(3)
-            pdf.multi_cell(0, 7, line_clean[3:])
+            pdf.multi_cell(pdf.epw, 7, line_clean[3:])
             pdf.ln(1)
         elif line_clean.startswith("### "):
             pdf.set_font("Helvetica", "I", 11)
             pdf.set_text_color(74, 85, 104)
-            pdf.multi_cell(0, 6, line_clean[4:])
+            pdf.multi_cell(pdf.epw, 6, line_clean[4:])
         elif line_clean.startswith("- ") or line_clean.startswith("* "):
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(40, 40, 40)
-            pdf.multi_cell(0, 6, f"   • {line_clean[2:]}")
+            pdf.multi_cell(pdf.epw, 6, f"   • {line_clean[2:]}")
         else:
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(40, 40, 40)
-            pdf.multi_cell(0, 6, line_clean)
+            pdf.multi_cell(pdf.epw, 6, line_clean)
 
     buffer = io.BytesIO()
     pdf.output(buffer)
@@ -185,7 +186,7 @@ def create_epub_from_markdown(text, domain_name):
     return buffer
 
 def generate_adaptation_with_fallback(prompt):
-    """Attempts OpenRouter free-tier generation first, falls back to Gemini API."""
+    """Attempts OpenRouter free router first, falls back to Gemini API."""
     openrouter_key = st.secrets.get("OPENROUTER_API_KEY")
     gemini_key = st.secrets.get("GEMINI_API_KEY")
     
@@ -196,10 +197,10 @@ def generate_adaptation_with_fallback(prompt):
                 api_key=openrouter_key,
             )
             response = client.chat.completions.create(
-                model="google/gemini-2.0-flash-lite-preview-02-05:free",
+                model="openrouter/free",  # Dynamic auto-routing to active free models
                 messages=[{"role": "user", "content": prompt}],
             )
-            return response.choices[0].message.content, "OpenRouter (Free Tier)"
+            return response.choices[0].message.content, "OpenRouter (Free Router)"
         except Exception as openrouter_err:
             st.warning(f"⚠️ OpenRouter Free Tier failed ({openrouter_err}). Switching to Gemini Fallback...")
 
