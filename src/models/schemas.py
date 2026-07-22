@@ -51,6 +51,20 @@ class AuditReport(BaseModel):
     prioritized_issues_map: Dict[str, list]
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+class BlueprintNode(BaseModel):
+    node_id: UUID = Field(default_factory=uuid4)
+    chunk_id: UUID
+    chronological_execution_order: int = Field(..., ge=0)
+    assigned_action_type: Literal["keep", "revise", "rewrite", "cut"] = Field("keep")
+    remediation_instruction_payload: str
+
+class Blueprint(BaseModel):
+    blueprint_id: UUID = Field(default_factory=uuid4)
+    manuscript_id: UUID
+    associated_report_id: UUID
+    ordered_nodes: List[BlueprintNode] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 class RewriteUnit(BaseModel):
     unit_id: UUID = Field(default_factory=uuid4)
     blueprint_id: UUID
