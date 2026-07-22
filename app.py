@@ -204,12 +204,12 @@ def create_kindle_html_from_markdown(text, domain_name):
         "  <meta charset='utf-8'>",
         f"  <title>{domain_name} — Kindle Edition</title>",
         "  <style>",
-        "    body { font-family: Bookerly, Georgia, serif; margin: 0; padding: 0.8em; line-height: 1.6; }",
-        "    h1 { text-align: center; font-size: 1.8em; margin-top: 1.5em; page-break-before: always; }",
-        "    h2 { font-size: 1.3em; color: #1a252c; margin-top: 1.2em; }",
-        "    p { margin-top: 0.8em; margin-bottom: 0.8em; text-align: left; }",
-        "    .takeaway-box { background-color: #f4f6f8; border-left: 3px solid #2c5282; padding: 0.8em; margin: 1em 0; }",
-        "    .kindle-page-break { page-break-after: always; }",
+        "    body {{ font-family: Bookerly, Georgia, serif; margin: 0; padding: 0.8em; line-height: 1.6; }}",
+        "    h1 {{ text-align: center; font-size: 1.8em; margin-top: 1.5em; page-break-before: always; }}",
+        "    h2 {{ font-size: 1.3em; color: #1a252c; margin-top: 1.2em; }}",
+        "    p {{ margin-top: 0.8em; margin-bottom: 0.8em; text-align: left; }}",
+        "    .takeaway-box {{ background-color: #f4f6f8; border-left: 3px solid #2c5282; padding: 0.8em; margin: 1em 0; }}",
+        "    .kindle-page-break {{ page-break-after: always; }}",
         "  </style>",
         "</head>",
         "<body>",
@@ -223,7 +223,7 @@ def create_kindle_html_from_markdown(text, domain_name):
         if not line_s:
             continue
         if line_s.startswith("# "):
-            html_lines.append(f"  <div class='kindle-page-break'></div>")
+            html_lines.append("  <div class='kindle-page-break'></div>")
             html_lines.append(f"  <h1>{line_s[2:]}</h1>")
         elif line_s.startswith("## "):
             html_lines.append(f"  <h2>{line_s[3:]}</h2>")
@@ -232,7 +232,6 @@ def create_kindle_html_from_markdown(text, domain_name):
         elif line_s.startswith("- ") or line_s.startswith("* "):
             html_lines.append(f"  <p>• {line_s[2:]}</p>")
         else:
-            # Break longer sentences down into short visual units to maintain momentum
             sentences = line_s.split(". ")
             if len(sentences) > 2:
                 for chunk in [". ".join(sentences[i:i+2]) for i in range(0, len(sentences), 2)]:
@@ -247,14 +246,14 @@ def create_kindle_html_from_markdown(text, domain_name):
 def create_audio_script_from_markdown(text, domain_name, target_tone):
     """Adapt manuscript into a conversational spoken-word script with audio cues, removing bullet lists & visual refs."""
     script_lines = [
-        f"============================================================",
-        f"AUDIOBOOK / PODCAST SPOKEN-WORD SCRIPT",
+        "============================================================",
+        "AUDIOBOOK / PODCAST SPOKEN-WORD SCRIPT",
         f"Project: {domain_name}",
         f"Tone Directive: Conversational & Engaging ({target_tone})",
-        f"Principle: Adapted for Conversation, Not Pure Visual Reading",
-        f"============================================================\n",
-        f"[AUDIO CUE: Intro Theme Music - Fade in 3s, under, fade out]",
-        f"[NARRATOR: Speak as if chatting directly with a friend sitting across from you.]\n"
+        "Principle: Adapted for Conversation, Not Pure Visual Reading",
+        "============================================================\n",
+        "[AUDIO CUE: Intro Theme Music - Fade in 3s, under, fade out]",
+        "[NARRATOR: Speak as if chatting directly with a friend sitting across from you.]\n"
     ]
 
     for line in text.split("\n"):
@@ -262,20 +261,20 @@ def create_audio_script_from_markdown(text, domain_name, target_tone):
         if not line_s:
             continue
             
-        # Clean out print-only visual references
         line_s = line_s.replace("see diagram below", "as we discuss").replace("refer to page", "as mentioned earlier")
         
         if line_s.startswith("# "):
-            script_lines.append(f"\n[AUDIO CUE: Chapter Transition Music - 2s]")
-            script_lines.append(f"[NARRATOR DIRECTIVE: Pause 3 seconds. Speak chapter title warmly with deliberate focus.]")
-            script_lines.append(f"CHAPTER TITLE: "{line_s[2:]}"")
-            script_lines.append(f"[pause 2s]\n")
+            heading_title = line_s[2:]
+            script_lines.append("\n[AUDIO CUE: Chapter Transition Music - 2s]")
+            script_lines.append("[NARRATOR DIRECTIVE: Pause 3 seconds. Speak chapter title warmly with deliberate focus.]")
+            script_lines.append(f"CHAPTER TITLE: '{heading_title}'")
+            script_lines.append("[pause 2s]\n")
         elif line_s.startswith("## "):
-            script_lines.append(f"\n[NARRATOR DIRECTIVE: Section Shift - Soft pause.]")
-            script_lines.append(f"SECTION: "{line_s[3:]}"")
-            script_lines.append(f"[pause 1s]\n")
+            section_title = line_s[3:]
+            script_lines.append("\n[NARRATOR DIRECTIVE: Section Shift - Soft pause.]")
+            script_lines.append(f"SECTION: '{section_title}'")
+            script_lines.append("[pause 1s]\n")
         elif line_s.startswith("- ") or line_s.startswith("* "):
-            # Convert visual list bullet into conversational prose item
             script_lines.append(f"  First, {line_s[2:]}. [pause 0.5s]")
         else:
             script_lines.append(f"{line_s}")
