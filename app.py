@@ -5,7 +5,7 @@ from docx import Document
 import pypdf
 import google.generativeai as genai
 from openai import OpenAI
-from weasyprint import HTML, CSS
+from fpdf import FPDF
 from src.intelligence.domains import DomainType, DOMAIN_REGISTRY, get_domain_profile
 
 # Page Configuration
@@ -67,106 +67,69 @@ def create_docx_from_markdown(text, domain_name):
     buffer.seek(0)
     return buffer
 
+class PublicationPDF(FPDF):
+    def __init__(self, domain_name):
+        super().__init__()
+        self.domain_name = domain_name
+
+    def header(self):
+        self.set_fill_color(26, 37, 44)
+        self.rect(0, 0, 210, 22, 'F')
+        self.set_font('Helvetica', 'B', 12)
+        self.set_text_color(255, 255, 255)
+        self.set_xy(10, 6)
+        self.cell(0, 10, f"REMIX-MASTER Remastered Manuscript | Niche: {self.domain_name}", ln=True)
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Helvetica', 'I', 8)
+        self.set_text_color(128, 128, 128)
+        self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+
 def create_pdf_from_markdown(text, domain_name):
-    """Convert generated markdown into a publication-ready PDF via WeasyPrint HTML/CSS."""
-    html_body = []
+    """Convert generated markdown into a publication PDF using FPDF2."""
+    pdf = PublicationPDF(domain_name)
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
     for line in text.split("\n"):
         line_s = line.strip()
         if not line_s:
+            pdf.ln(3)
             continue
-        if line_s.startswith("# "):
-            html_body.append(f"<h1>{line_s[2:]}</h1>")
-        elif line_s.startswith("## "):
-            html_body.append(f"<h2>{line_s[3:]}</h2>")
-        elif line_s.startswith("### "):
-            html_body.append(f"<h3>{line_s[4:]}</h3>")
-        elif line_s.startswith("- ") or line_s.startswith("* "):
-            html_body.append(f"<li>{line_s[2:]}</li>")
+            
+        # Clean non-latin characters for standard PDF fonts
+        line_clean = line_s.encode('latin-1', 'replace').decode('latin-1')
+
+        if line_clean.startswith("# "):
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.set_text_color(26, 37, 44)
+            pdf.ln(4)
+            pdf.multi_cell(0, 8, line_clean[2:])
+            pdf.ln(2)
+        elif line_clean.startswith("## "):
+            pdf.set_font("Helvetica", "B", 13)
+            pdf.set_text_color(44, 82, 130)
+            pdf.ln(3)
+            pdf.multi_cell(0, 7, line_clean[3:])
+            pdf.ln(1)
+        elif line_clean.startswith("### "):
+            pdf.set_font("Helvetica", "I", 11)
+            pdf.set_text_color(74, 85, 104)
+            pdf.multi_cell(0, 6, line_clean[4:])
+        elif line_clean.startswith("- ") or line_clean.startswith("* "):
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(40, 40, 40)
+            pdf.multi_cell(0, 6, f"   • {line_clean[2:]}")
         else:
-            html_body.append(f"<p>{line_s}</p>")
-
-    content_html = "\n".join(html_body)
-
-    html_template = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <style>
-            @page {{
-                size: A4;
-                margin: 20mm 15mm;
-                background-color: #faf9f6;
-            }}
-            body {{
-                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                color: #2b2b2b;
-                line-height: 1.6;
-                font-size: 11pt;
-                margin: 0;
-                padding: 0;
-            }}
-            .header-banner {{
-                background-color: #1a252c;
-                color: #ffffff;
-                padding: 20px 25px;
-                margin-top: -20mm;
-                margin-left: -15mm;
-                margin-right: -15mm;
-                margin-bottom: 25px;
-            }}
-            .header-banner h1 {{
-                font-size: 18pt;
-                margin: 0;
-                padding: 0;
-                color: #ffffff;
-                border: none;
-            }}
-            .header-banner p {{
-                font-size: 10pt;
-                color: #a0aec0;
-                margin: 5px 0 0 0;
-            }}
-            h1 {{
-                color: #1a252c;
-                font-size: 16pt;
-                border-bottom: 2px solid #3182ce;
-                padding-bottom: 4px;
-                margin-top: 20px;
-            }}
-            h2 {{
-                color: #2c5282;
-                font-size: 13pt;
-                margin-top: 16px;
-            }}
-            h3 {{
-                color: #4a5568;
-                font-size: 11pt;
-                font-style: italic;
-            }}
-            p {{
-                margin-bottom: 12px;
-                text-align: justify;
-            }}
-            li {{
-                margin-bottom: 6px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="header-banner">
-            <h1>REMIX-MASTER Remastered Manuscript</h1>
-            <p>Domain: {domain_name} | Publication Adaptation</p>
-        </div>
-        <div class="content">
-            {content_html}
-        </div>
-    </body>
-    </html>
-    """
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(40, 40, 40)
+            pdf.multi_cell(0, 6, line_clean)
 
     buffer = io.BytesIO()
-    HTML(string=html_template).write_pdf(buffer)
+    pdf.output(buffer)
     buffer.seek(0)
     return buffer
 
@@ -175,7 +138,6 @@ def generate_adaptation_with_fallback(prompt):
     openrouter_key = st.secrets.get("OPENROUTER_API_KEY")
     gemini_key = st.secrets.get("GEMINI_API_KEY")
     
-    # Attempt 1: OpenRouter Free Tier
     if openrouter_key:
         try:
             client = OpenAI(
@@ -190,7 +152,6 @@ def generate_adaptation_with_fallback(prompt):
         except Exception as openrouter_err:
             st.warning(f"⚠️ OpenRouter Free Tier failed ({openrouter_err}). Switching to Gemini Fallback...")
 
-    # Attempt 2: Direct Gemini Fallback
     if gemini_key:
         try:
             genai.configure(api_key=gemini_key)
@@ -410,7 +371,7 @@ Please generate an adapted executive summary in the requested tone ({target_tone
                     use_container_width=True
                 )
             except Exception as pdf_err:
-                st.warning(f"PDF generation unavailable: {pdf_err}")
+                st.warning(f"PDF generation failed: {pdf_err}")
 
 else:
     st.info("Please upload one or more `.docx` / `.pdf` manuscript files to proceed.")
