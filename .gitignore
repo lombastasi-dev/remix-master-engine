@@ -1,0 +1,11 @@
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment and secrets
+.env
+.secrets.toml
+
+# OS generated files
+.DS_Store
