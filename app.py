@@ -37,6 +37,20 @@ def audit_manuscript(text, required_elements):
     score = int((found_count / len(required_elements)) * 100) if required_elements else 100
     return results, score
 
+def compute_readability_metrics(text):
+    words = re.findall(r'\w+', text)
+    sentences = [s for s in re.split(r'[.!?]+', text) if s.strip()]
+    word_count = len(words)
+    sentence_count = max(1, len(sentences))
+    avg_sentence_len = round(word_count / sentence_count, 1)
+    est_reading_time_min = max(1, round(word_count / 200))
+    return {
+        'total_words': word_count,
+        'total_sentences': sentence_count,
+        'avg_sentence_len': avg_sentence_len,
+        'est_reading_time_min': est_reading_time_min
+    }
+
 def generate_front_matter(book_title, author_name, publisher_name, domain_name):
     return f'''# {book_title}\n\n**By {author_name}**  \n*Published by {publisher_name}*\n\n---\n\n### Title & Copyright Page\n**{book_title}**  \nCopyright © 2026 by {author_name}. All rights reserved.\n\nNo part of this publication may be reproduced, distributed, or transmitted in any form or by any means without prior written permission of the publisher.\n\n*Category:* {domain_name}  \n*First Edition:* 2026\n\n---\n\n### Preface\nWelcome to **{book_title}**. This work was created to offer practical, structured guidance in {domain_name}. Modern readers digest information in different ways—whether in short visual bursts on a screen, structured study on paper, or dynamic listening on the go. This edition was tailored to respect your time and provide actionable clarity from start to finish.\n'''
 
@@ -150,14 +164,31 @@ if uploaded_files:
         st.download_button('💾 Download Full Master Manuscript (.md)', data=st.session_state['generated_text'], file_name='master_manuscript.md')
         
         st.divider()
+        st.subheader('📊 Interactive Quality & Readability Review')
+        read_metrics = compute_readability_metrics(st.session_state['generated_text'])
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric('Total Word Count', f"{read_metrics['total_words']:,}")
+        with m2:
+            st.metric('Sentence Count', f"{read_metrics['total_sentences']:,}")
+        with m3:
+            st.metric('Avg Sentence Length', f"{read_metrics['avg_sentence_len']} words")
+        with m4:
+            st.metric('Est. Reading Time', f"~{read_metrics['est_reading_time_min']} mins")
+            
+        if st.button('🔍 Run AI Editorial Compliance Audit'):
+            with st.spinner('Performing deep editorial audit...'):
+                eval_prompt = f'''Act as a senior publisher in {profile.display_name}. Audit this excerpt against the {target_tone} tone and provide 3 key strengths, 3 recommendations for polish, and a publication recommendation.\n\nExcerpt:\n{st.session_state['generated_text'][:3000]}'''
+                audit_report, _ = generate_adaptation_with_fallback(eval_prompt)
+                st.markdown(audit_report)
+        
+        st.divider()
         st.subheader('🎨 Cover Blueprint & KDP Metadata Package')
         col_cov1, col_cov2 = st.columns([1, 2])
-        
         with col_cov1:
             cover_buf = create_cover_image(book_title, book_subtitle, author_name, profile.display_name)
             st.image(cover_buf, caption='Generated Front Cover Blueprint', use_container_width=True)
             st.download_button('📥 Download Cover Image (.png)', data=cover_buf.getvalue(), file_name='cover_blueprint.png', mime='image/png')
-            
         with col_cov2:
             metadata_pkg = {
                 'title': book_title,
@@ -177,7 +208,6 @@ if uploaded_files:
         st.subheader('🎙️ Audiobook Sample Preview (TTS)')
         voice_option = st.selectbox('Select Narrator Voice', ['en-US-ChristopherNeural', 'en-US-JennyNeural', 'en-GB-SoniaNeural', 'en-AU-WilliamNeural'])
         clean_sample = re.sub(r'[#\*\-_]', '', st.session_state['generated_text'][:500])
-        
         if st.button('🎧 Generate & Play Audio Sample'):
             with st.spinner('Synthesizing speech sample...'):
                 try:
