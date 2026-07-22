@@ -6,6 +6,8 @@ import pypdf
 import google.generativeai as genai
 from openai import OpenAI
 from fpdf import FPDF
+import ebooklib
+from ebooklib import epub
 from src.intelligence.domains import DomainType, DOMAIN_REGISTRY, get_domain_profile
 
 # Page Configuration
@@ -100,7 +102,6 @@ def create_pdf_from_markdown(text, domain_name):
             pdf.ln(3)
             continue
             
-        # Clean non-latin characters for standard PDF fonts
         line_clean = line_s.encode('latin-1', 'replace').decode('latin-1')
 
         if line_clean.startswith("# "):
@@ -130,6 +131,56 @@ def create_pdf_from_markdown(text, domain_name):
 
     buffer = io.BytesIO()
     pdf.output(buffer)
+    buffer.seek(0)
+    return buffer
+
+def create_epub_from_markdown(text, domain_name):
+    """Convert generated markdown into an EPUB e-book using EbookLib."""
+    book = epub.EpubBook()
+    book.set_identifier("remix-master-adapted-manuscript")
+    book.set_title(f"Remastered Output — {domain_name}")
+    book.set_language("en")
+    book.add_author("REMIX-MASTER Engine")
+
+    html_body = []
+    for line in text.split("\n"):
+        line_s = line.strip()
+        if not line_s:
+            continue
+        if line_s.startswith("# "):
+            html_body.append(f"<h1>{line_s[2:]}</h1>")
+        elif line_s.startswith("## "):
+            html_body.append(f"<h2>{line_s[3:]}</h2>")
+        elif line_s.startswith("### "):
+            html_body.append(f"<h3>{line_s[4:]}</h3>")
+        elif line_s.startswith("- ") or line_s.startswith("* "):
+            html_body.append(f"<li>{line_s[2:]}</li>")
+        else:
+            html_body.append(f"<p>{line_s}</p>")
+
+    chapter = epub.EpubHtml(title="Adapted Manuscript", file_name="chapter_1.xhtml", lang="en")
+    chapter.content = f"""
+    <html>
+    <head><style>
+        body {{ font-family: Georgia, serif; margin: 5%; line-height: 1.6; }}
+        h1 {{ color: #1a252c; border-bottom: 1px solid #ccc; }}
+        h2 {{ color: #2c5282; }}
+        p {{ text-align: justify; margin-bottom: 1em; }}
+    </style></head>
+    <body>
+        {''.join(html_body)}
+    </body>
+    </html>
+    """
+
+    book.add_item(chapter)
+    book.toc = (epub.Link("chapter_1.xhtml", "Adapted Manuscript", "intro"),)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav", chapter]
+
+    buffer = io.BytesIO()
+    epub.write_epub(buffer, book, {})
     buffer.seek(0)
     return buffer
 
@@ -339,12 +390,12 @@ Please generate an adapted executive summary in the requested tone ({target_tone
         st.divider()
         st.subheader("💾 Export Multi-Pack")
         
-        ec1, ec2, ec3 = st.columns(3)
+        ec1, ec2, ec3, ec4 = st.columns(4)
         
         with ec1:
             docx_buffer = create_docx_from_markdown(st.session_state['generated_text'], profile.display_name)
             st.download_button(
-                label="📄 Download as Word (.docx)",
+                label="📄 Word (.docx)",
                 data=docx_buffer,
                 file_name=f"remastered_{domain_choice.value}_batch.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -353,7 +404,7 @@ Please generate an adapted executive summary in the requested tone ({target_tone
             
         with ec2:
             st.download_button(
-                label="📝 Download as Markdown (.md)",
+                label="📝 Markdown (.md)",
                 data=st.session_state['generated_text'],
                 file_name=f"remastered_{domain_choice.value}_batch.md",
                 mime="text/markdown",
@@ -364,14 +415,27 @@ Please generate an adapted executive summary in the requested tone ({target_tone
             try:
                 pdf_buffer = create_pdf_from_markdown(st.session_state['generated_text'], profile.display_name)
                 st.download_button(
-                    label="📕 Download as PDF (.pdf)",
+                    label="📕 PDF (.pdf)",
                     data=pdf_buffer,
                     file_name=f"remastered_{domain_choice.value}_batch.pdf",
                     mime="application/pdf",
                     use_container_width=True
                 )
             except Exception as pdf_err:
-                st.warning(f"PDF generation failed: {pdf_err}")
+                st.warning(f"PDF failed: {pdf_err}")
+
+        with ec4:
+            try:
+                epub_buffer = create_epub_from_markdown(st.session_state['generated_text'], profile.display_name)
+                st.download_button(
+                    label="📱 EPUB (.epub)",
+                    data=epub_buffer,
+                    file_name=f"remastered_{domain_choice.value}_batch.epub",
+                    mime="application/epub+zip",
+                    use_container_width=True
+                )
+            except Exception as epub_err:
+                st.warning(f"EPUB failed: {epub_err}")
 
 else:
     st.info("Please upload one or more `.docx` / `.pdf` manuscript files to proceed.")
