@@ -3,3 +3,4 @@ pypdf
 python-docx
 pydantic
 google-generativeai
+openai

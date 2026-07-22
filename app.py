@@ -4,6 +4,7 @@ import docx
 from docx import Document
 import pypdf
 import google.generativeai as genai
+from openai import OpenAI
 from src.intelligence.domains import DomainType, DOMAIN_REGISTRY, get_domain_profile
 
 # Page Configuration
@@ -64,6 +65,38 @@ def create_docx_from_markdown(text, domain_name):
     doc.save(buffer)
     buffer.seek(0)
     return buffer
+
+def generate_adaptation_with_fallback(prompt):
+    """Attempts OpenRouter free-tier generation first, falls back to Gemini API."""
+    openrouter_key = st.secrets.get("OPENROUTER_API_KEY")
+    gemini_key = st.secrets.get("GEMINI_API_KEY")
+    
+    # Attempt 1: OpenRouter Free Tier
+    if openrouter_key:
+        try:
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=openrouter_key,
+            )
+            response = client.chat.completions.create(
+                model="google/gemini-2.0-flash-lite-preview-02-05:free",
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return response.choices[0].message.content, "OpenRouter (Free Tier)"
+        except Exception as openrouter_err:
+            st.warning(f"⚠️ OpenRouter Free Tier failed ({openrouter_err}). Switching to Gemini Fallback...")
+
+    # Attempt 2: Direct Gemini Fallback
+    if gemini_key:
+        try:
+            genai.configure(api_key=gemini_key)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
+            return response.text, "Google Gemini API (Fallback)"
+        except Exception as gemini_err:
+            raise RuntimeError(f"Gemini Fallback failed: {gemini_err}")
+
+    raise ValueError("No valid API keys found. Please set OPENROUTER_API_KEY or GEMINI_API_KEY in Streamlit Secrets.")
 
 # Header Section
 st.title("📚 REMIX-MASTER: Autonomous Publishing Control Room")
@@ -168,22 +201,13 @@ if uploaded_files:
 
     st.divider()
 
-    # Live Generation & Export Engine
+    # Live Generation Engine with OpenRouter + Gemini Fallback
     st.subheader("🚀 Autonomous Adaptation Engine")
     st.write("Generate missing structural components and domain-specific publishing outputs for this batch.")
 
     if st.button("⚡ Run Domain-Adaptive Remastering", type="primary"):
-        api_key = st.secrets.get("GEMINI_API_KEY")
+        prompt = f"""You are an expert publishing editor specializing in {profile.display_name}.
         
-        if not api_key:
-            st.error("⚠️ GEMINI_API_KEY not found in Streamlit Secrets. Please add it to your app settings.")
-        else:
-            try:
-                genai.configure(api_key=api_key)
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                
-                prompt = f"""You are an expert publishing editor specializing in {profile.display_name}.
-                
 The target focus is: {profile.primary_focus}
 The required structural elements for this niche are: {', '.join(profile.required_elements)}
 The following elements were flagged as MISSING across the batch: {', '.join(missing_elements) if missing_elements else 'None'}
@@ -196,14 +220,16 @@ Here is the aggregated text from {len(uploaded_files)} manuscript files:
 Please generate an adapted executive summary, harmonize chapter transitions across the batch, and draft any missing structural components formatted in clean Markdown for immediate publishing preparation.
 """
 
-                with st.spinner("AI Engine generating batch domain adaptation..."):
-                    response = model.generate_content(prompt)
-                    st.session_state['generated_text'] = response.text
-                    
+        with st.spinner("AI Engine generating batch domain adaptation..."):
+            try:
+                output_text, provider_used = generate_adaptation_with_fallback(prompt)
+                st.session_state['generated_text'] = output_text
+                st.session_state['provider_used'] = provider_used
             except Exception as e:
-                st.error(f"Error during AI generation: {e}")
+                st.error(f"Execution Error: {e}")
 
     if 'generated_text' in st.session_state:
+        st.info(f"Generated via: **{st.session_state.get('provider_used', 'Unknown Provider')}**")
         st.subheader("✨ Generated Domain Adaptation")
         st.markdown(st.session_state['generated_text'])
         
