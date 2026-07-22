@@ -113,4 +113,4 @@ async def test_async_batch_processing():
     report = await process_manuscript_chunks_async(chunks, max_concurrency=5)
     
     assert report is not None
-    assert len(report.findings) == 10
+    assert len(getattr(report, 'prioritized_issues_map')) == 10
