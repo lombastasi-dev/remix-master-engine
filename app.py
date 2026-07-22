@@ -45,9 +45,9 @@ def audit_manuscript(text, required_elements):
     return results, score
 
 def create_docx_from_markdown(text, domain_name):
-    """Convert generated markdown-like response into a clean Word document."""
+    """Convert master manuscript into a clean Paperback-style Word document."""
     doc = Document()
-    doc.add_heading(f"Remastered Output — {domain_name}", level=0)
+    doc.add_heading(f"Master Manuscript — {domain_name}", level=0)
     
     for line in text.split("\n"):
         line_strip = line.strip()
@@ -80,7 +80,7 @@ class PublicationPDF(FPDF):
         self.set_font('Helvetica', 'B', 12)
         self.set_text_color(255, 255, 255)
         self.set_xy(10, 6)
-        self.cell(0, 10, f"REMIX-MASTER Remastered Manuscript | Niche: {self.domain_name}", ln=True)
+        self.cell(0, 10, f"REMIX-MASTER Reference PDF | Domain: {self.domain_name}", ln=True)
         self.ln(10)
 
     def footer(self):
@@ -90,26 +90,17 @@ class PublicationPDF(FPDF):
         self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
 
 def sanitize_text_for_pdf(text):
-    """Replace common non-Latin-1 Unicode characters with standard ASCII equivalents."""
+    """Replace non-Latin-1 Unicode characters with standard ASCII equivalents."""
     replacements = {
-        "•": "-",
-        "—": "--",
-        "–": "-",
-        "“": '"',
-        "”": '"',
-        "‘": "'",
-        "’": "'",
-        "…": "...",
-        "™": "(TM)",
-        "®": "(R)",
-        "©": "(C)"
+        "•": "-", "—": "--", "–": "-", "“": '"', "”": '"',
+        "‘": "'", "’": "'", "…": "...", "™": "(TM)", "®": "(R)", "©": "(C)"
     }
     for orig, repl in replacements.items():
         text = text.replace(orig, repl)
     return text.encode('latin-1', 'replace').decode('latin-1')
 
 def create_pdf_from_markdown(text, domain_name):
-    """Convert generated markdown into a publication PDF using FPDF2 cleanly."""
+    """Convert master text into a Reference & Learning optimized PDF with clear navigation layout."""
     pdf = PublicationPDF(domain_name)
     pdf.alias_nb_pages()
     pdf.add_page()
@@ -155,7 +146,7 @@ def create_pdf_from_markdown(text, domain_name):
     return buffer
 
 def create_epub_from_markdown(text, domain_name):
-    """Convert generated markdown into an EPUB e-book using EbookLib."""
+    """Convert generated markdown into a reflowable EPUB e-book."""
     book = epub.EpubBook()
     book.set_identifier("remix-master-adapted-manuscript")
     book.set_title(f"Remastered Output — {domain_name}")
@@ -204,6 +195,100 @@ def create_epub_from_markdown(text, domain_name):
     buffer.seek(0)
     return buffer
 
+def create_kindle_html_from_markdown(text, domain_name):
+    """Generate Kindle KDP HTML optimized for momentum, short visual units, and generous white space."""
+    html_lines = [
+        "<!DOCTYPE html>",
+        "<html>",
+        "<head>",
+        "  <meta charset='utf-8'>",
+        f"  <title>{domain_name} — Kindle Edition</title>",
+        "  <style>",
+        "    body { font-family: Bookerly, Georgia, serif; margin: 0; padding: 0.8em; line-height: 1.6; }",
+        "    h1 { text-align: center; font-size: 1.8em; margin-top: 1.5em; page-break-before: always; }",
+        "    h2 { font-size: 1.3em; color: #1a252c; margin-top: 1.2em; }",
+        "    p { margin-top: 0.8em; margin-bottom: 0.8em; text-align: left; }",
+        "    .takeaway-box { background-color: #f4f6f8; border-left: 3px solid #2c5282; padding: 0.8em; margin: 1em 0; }",
+        "    .kindle-page-break { page-break-after: always; }",
+        "  </style>",
+        "</head>",
+        "<body>",
+        f"  <h1 style='page-break-before: avoid;'>{domain_name}</h1>",
+        "  <p style='text-align: center;'><em>Kindle Edition — Optimized for Reading Momentum</em></p>",
+        "  <div class='kindle-page-break'></div>"
+    ]
+
+    for line in text.split("\n"):
+        line_s = line.strip()
+        if not line_s:
+            continue
+        if line_s.startswith("# "):
+            html_lines.append(f"  <div class='kindle-page-break'></div>")
+            html_lines.append(f"  <h1>{line_s[2:]}</h1>")
+        elif line_s.startswith("## "):
+            html_lines.append(f"  <h2>{line_s[3:]}</h2>")
+        elif line_s.startswith("### "):
+            html_lines.append(f"  <h3>{line_s[4:]}</h3>")
+        elif line_s.startswith("- ") or line_s.startswith("* "):
+            html_lines.append(f"  <p>• {line_s[2:]}</p>")
+        else:
+            # Break longer sentences down into short visual units to maintain momentum
+            sentences = line_s.split(". ")
+            if len(sentences) > 2:
+                for chunk in [". ".join(sentences[i:i+2]) for i in range(0, len(sentences), 2)]:
+                    c_text = chunk if chunk.endswith(".") else chunk + "."
+                    html_lines.append(f"  <p>{c_text}</p>")
+            else:
+                html_lines.append(f"  <p>{line_s}</p>")
+
+    html_lines.extend(["</body>", "</html>"])
+    return "\n".join(html_lines)
+
+def create_audio_script_from_markdown(text, domain_name, target_tone):
+    """Adapt manuscript into a conversational spoken-word script with audio cues, removing bullet lists & visual refs."""
+    script_lines = [
+        f"============================================================",
+        f"AUDIOBOOK / PODCAST SPOKEN-WORD SCRIPT",
+        f"Project: {domain_name}",
+        f"Tone Directive: Conversational & Engaging ({target_tone})",
+        f"Principle: Adapted for Conversation, Not Pure Visual Reading",
+        f"============================================================\n",
+        f"[AUDIO CUE: Intro Theme Music - Fade in 3s, under, fade out]",
+        f"[NARRATOR: Speak as if chatting directly with a friend sitting across from you.]\n"
+    ]
+
+    for line in text.split("\n"):
+        line_s = line.strip()
+        if not line_s:
+            continue
+            
+        # Clean out print-only visual references
+        line_s = line_s.replace("see diagram below", "as we discuss").replace("refer to page", "as mentioned earlier")
+        
+        if line_s.startswith("# "):
+            script_lines.append(f"\n[AUDIO CUE: Chapter Transition Music - 2s]")
+            script_lines.append(f"[NARRATOR DIRECTIVE: Pause 3 seconds. Speak chapter title warmly with deliberate focus.]")
+            script_lines.append(f"CHAPTER TITLE: "{line_s[2:]}"")
+            script_lines.append(f"[pause 2s]\n")
+        elif line_s.startswith("## "):
+            script_lines.append(f"\n[NARRATOR DIRECTIVE: Section Shift - Soft pause.]")
+            script_lines.append(f"SECTION: "{line_s[3:]}"")
+            script_lines.append(f"[pause 1s]\n")
+        elif line_s.startswith("- ") or line_s.startswith("* "):
+            # Convert visual list bullet into conversational prose item
+            script_lines.append(f"  First, {line_s[2:]}. [pause 0.5s]")
+        else:
+            script_lines.append(f"{line_s}")
+
+    script_lines.extend([
+        "\n[AUDIO CUE: Outro Theme Music - Fade in 4s]",
+        "[NARRATOR DIRECTIVE: Slow down pacing slightly for final closing thoughts.]",
+        "Thank you for listening.",
+        "[AUDIO CUE: Music Fade Out Complete]"
+    ])
+
+    return "\n".join(script_lines)
+
 def generate_adaptation_with_fallback(prompt):
     """Attempts OpenRouter free router first, falls back to Gemini API."""
     openrouter_key = st.secrets.get("OPENROUTER_API_KEY")
@@ -216,7 +301,7 @@ def generate_adaptation_with_fallback(prompt):
                 api_key=openrouter_key,
             )
             response = client.chat.completions.create(
-                model="openrouter/free",  # Dynamic auto-routing to active free models
+                model="openrouter/free",
                 messages=[{"role": "user", "content": prompt}],
             )
             return response.choices[0].message.content, "OpenRouter (Free Router)"
@@ -236,7 +321,7 @@ def generate_adaptation_with_fallback(prompt):
 
 # Header Section
 st.title("📚 REMIX-MASTER: Autonomous Publishing Control Room")
-st.caption("Domain-Adaptive Intelligence & Multi-Format Adaptation Stack")
+st.caption("One Master Manuscript → Four Distinct Reading Experiences (Kindle | Paperback | PDF | Audiobook)")
 
 st.divider()
 
@@ -304,7 +389,7 @@ with col2:
 st.divider()
 
 # Main Dashboard - Batch Ingestion Setup
-st.subheader("📦 Batch Manuscript Ingestion & Parsing")
+st.subheader("📦 Master Manuscript Ingestion & Parsing")
 
 uploaded_files = st.file_uploader(
     "Upload manuscript files (.docx or .pdf)",
@@ -319,7 +404,7 @@ if uploaded_files:
     combined_text = ""
     file_summaries = []
 
-    with st.spinner("Extracting and aggregating batch texts..."):
+    with st.spinner("Extracting and aggregating batch texts into Master Blueprint..."):
         for file in uploaded_files:
             file_text = extract_text_from_file(file)
             f_words = len(file_text.split())
@@ -340,10 +425,10 @@ if uploaded_files:
         word_pct = min(100, int((total_word_count / target_word_count) * 100))
         st.metric("Word Count Progress", f"{word_pct}%")
     with ic4:
-        st.metric("Batch Status", "Aggregated & Ready")
+        st.metric("Blueprint Status", "Aggregated & Ready")
 
     # File Breakdown Expander
-    with st.expander("📂 Batch Files Breakdown & Preview", expanded=False):
+    with st.expander("📂 Master Manuscript Breakdown & Preview", expanded=False):
         for f_info in file_summaries:
             st.write(f"📄 **{f_info['filename']}** — {f_info['words']:,} words ({f_info['chars']:,} chars)")
         st.text_area("Aggregated Batch Text Sample", combined_text[:2000] + ("..." if len(combined_text) > 2000 else ""), height=200)
@@ -351,14 +436,14 @@ if uploaded_files:
     st.divider()
 
     # Structural Audit
-    st.subheader(f"📊 Structural Audit — {profile.display_name}")
+    st.subheader(f"📊 Master Structural Audit — {profile.display_name}")
     
     audit_results, readiness_score = audit_manuscript(combined_text, all_required_elements)
     
     ac1, ac2 = st.columns([1, 2])
     
     with ac1:
-        st.metric(label="Batch Compliance Score", value=f"{readiness_score}%")
+        st.metric(label="Master Compliance Score", value=f"{readiness_score}%")
         st.progress(readiness_score / 100)
         
     with ac2:
@@ -374,10 +459,10 @@ if uploaded_files:
     st.divider()
 
     # Live Generation Engine
-    st.subheader("🚀 Autonomous Adaptation Engine")
-    st.write(f"Generate missing structural components in **{target_tone}** tone.")
+    st.subheader("🚀 Master Blueprint Adaptation Engine")
+    st.write(f"Generate missing structural components in **{target_tone}** tone to create the Master Manuscript.")
 
-    if st.button("⚡ Run Domain-Adaptive Remastering", type="primary"):
+    if st.button("⚡ Generate Master Manuscript Blueprint", type="primary"):
         prompt = f"""You are an expert publishing editor specializing in {profile.display_name}.
         
 The target focus is: {profile.primary_focus}
@@ -391,10 +476,10 @@ Here is the aggregated text from {len(uploaded_files)} manuscript files:
 {combined_text[:5000]}
 ---
 
-Please generate an adapted executive summary in the requested tone ({target_tone}), harmonize chapter transitions, and draft any missing structural components formatted in clean Markdown.
+Please generate a complete Master Manuscript blueprint in Markdown that harmonizes chapter transitions, fulfills all required structural elements, and provides a polished source document ready for multi-format adaptation.
 """
 
-        with st.spinner("AI Engine generating batch domain adaptation..."):
+        with st.spinner("AI Engine generating Master Manuscript Blueprint..."):
             try:
                 output_text, provider_used = generate_adaptation_with_fallback(prompt)
                 st.session_state['generated_text'] = output_text
@@ -404,58 +489,91 @@ Please generate an adapted executive summary in the requested tone ({target_tone
 
     if 'generated_text' in st.session_state:
         st.info(f"Generated via: **{st.session_state.get('provider_used', 'Unknown Provider')}**")
-        st.subheader("✨ Generated Domain Adaptation")
+        st.subheader("✨ Master Manuscript Blueprint")
         st.markdown(st.session_state['generated_text'])
         
         st.divider()
-        st.subheader("💾 Export Multi-Pack")
+        st.subheader("💾 Export Dedicated Multi-Format Editions")
+        st.caption("Each edition adapts the presentation specifically to its reader's expectations & medium.")
         
-        ec1, ec2, ec3, ec4 = st.columns(4)
+        # Row 1: Print & Kindle
+        ec1, ec2, ec3 = st.columns(3)
         
         with ec1:
             docx_buffer = create_docx_from_markdown(st.session_state['generated_text'], profile.display_name)
             st.download_button(
-                label="📄 Word (.docx)",
+                label="📖 Paperback Edition (.docx)",
                 data=docx_buffer,
-                file_name=f"remastered_{domain_choice.value}_batch.docx",
+                file_name=f"paperback_{domain_choice.value}.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                use_container_width=True
-            )
-            
-        with ec2:
-            st.download_button(
-                label="📝 Markdown (.md)",
-                data=st.session_state['generated_text'],
-                file_name=f"remastered_{domain_choice.value}_batch.md",
-                mime="text/markdown",
-                use_container_width=True
+                use_container_width=True,
+                help="Optimized for substantial reading, traditional paragraphs, and print credibility."
             )
 
+        with ec2:
+            kindle_html = create_kindle_html_from_markdown(st.session_state['generated_text'], profile.display_name)
+            st.download_button(
+                label="🔥 Kindle Edition (.html / KDP)",
+                data=kindle_html,
+                file_name=f"kindle_{domain_choice.value}_kdp.html",
+                mime="text/html",
+                use_container_width=True,
+                help="Optimized for reading momentum, short visual units, and effortless page-turning."
+            )
+            
         with ec3:
+            st.download_button(
+                label="📝 Master Blueprint (.md)",
+                data=st.session_state['generated_text'],
+                file_name=f"master_manuscript_{domain_choice.value}.md",
+                mime="text/markdown",
+                use_container_width=True,
+                help="The uncompressed source markdown master file."
+            )
+
+        st.write("") # Spacer
+        
+        # Row 2: Reference PDF, EPUB, and Audiobook
+        ec4, ec5, ec6 = st.columns(3)
+
+        with ec4:
             try:
                 pdf_buffer = create_pdf_from_markdown(st.session_state['generated_text'], profile.display_name)
                 st.download_button(
-                    label="📕 PDF (.pdf)",
+                    label="📄 PDF Reference Guide (.pdf)",
                     data=pdf_buffer,
-                    file_name=f"remastered_{domain_choice.value}_batch.pdf",
+                    file_name=f"reference_guide_{domain_choice.value}.pdf",
                     mime="application/pdf",
-                    use_container_width=True
+                    use_container_width=True,
+                    help="Optimized for fixed-layout reference, structured learning, and clear navigation."
                 )
             except Exception as pdf_err:
                 st.warning(f"PDF failed: {pdf_err}")
 
-        with ec4:
+        with ec5:
             try:
                 epub_buffer = create_epub_from_markdown(st.session_state['generated_text'], profile.display_name)
                 st.download_button(
-                    label="📱 EPUB (.epub)",
+                    label="📱 Standard E-Book (.epub)",
                     data=epub_buffer,
-                    file_name=f"remastered_{domain_choice.value}_batch.epub",
+                    file_name=f"ebook_{domain_choice.value}.epub",
                     mime="application/epub+zip",
-                    use_container_width=True
+                    use_container_width=True,
+                    help="Reflowable e-book format for non-Kindle e-readers."
                 )
             except Exception as epub_err:
                 st.warning(f"EPUB failed: {epub_err}")
+
+        with ec6:
+            audio_script = create_audio_script_from_markdown(st.session_state['generated_text'], profile.display_name, target_tone)
+            st.download_button(
+                label="🎙️ Audiobook Script (.txt)",
+                data=audio_script,
+                file_name=f"audiobook_script_{domain_choice.value}.txt",
+                mime="text/plain",
+                use_container_width=True,
+                help="Adapted for natural spoken conversation, audio cues, and narrator pacing."
+            )
 
 else:
     st.info("Please upload one or more `.docx` / `.pdf` manuscript files to proceed.")
