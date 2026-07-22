@@ -1,108 +1,61 @@
-import re
-import difflib
+import logging
+from typing import List
 from uuid import uuid4
-import streamlit as st
-from openai import OpenAI
-import google.generativeai as genai
-from src.models.schemas import Blueprint, BlueprintNode, RewriteUnit, ManuscriptChunk, Finding
+from src.models.schemas import AuditReport, Blueprint, BlueprintNode, Finding
 
-def generate_blueprint_from_findings(manuscript_id, report_id, chunks: list[ManuscriptChunk], findings: list[Finding]) -> Blueprint:
-    # Group findings by chunk_id
-    findings_by_chunk = {}
-    for f in findings:
-        findings_by_chunk.setdefault(f.chunk_id, []).append(f)
-        
-    ordered_nodes = []
-    for idx, chunk in enumerate(chunks):
-        chunk_findings = findings_by_chunk.get(chunk.chunk_id, [])
-        
-        # Determine node action type
-        if not chunk_findings:
-            action_type = "keep"
-            remediation_payload = "No operational defects found. Retain original chunk."
-        else:
-            has_red = any(f.severity_rating == "Red" for f in chunk_findings)
-            action_type = "rewrite" if has_red else "revise"
-            remediation_payload = " | ".join([f.proposed_remediation_guideline for f in chunk_findings])
+logger = logging.getLogger("BlueprintEngine")
+
+def map_finding_to_action(finding: Finding) -> str:
+    """Routes finding severity/target_dimension to a blueprint action type."""
+    dimension = getattr(finding, "target_dimension", "").lower()
+    severity = getattr(finding, "severity", "").lower()
+    critique = getattr(finding, "diagnostic_critique", "").lower()
+    
+    if severity == "high" or "structure" in dimension:
+        return "rewrite"
+    elif "brevity" in dimension or "wordy" in critique:
+        return "condense"
+    elif "clarity" in dimension or "expand" in critique:
+        return "expand"
+    else:
+        return "revise"
+
+def generate_transformation_blueprint(audit_report: AuditReport) -> Blueprint:
+    """
+    Parses an AuditReport and constructs an ordered execution Blueprint 
+    mapping chunk-level issues to targeted rewrite actions.
+    """
+    blueprint_id = uuid4()
+    ordered_nodes: List[BlueprintNode] = []
+    
+    # Collect findings across prioritized map categories
+    all_findings: List[Finding] = []
+    for severity_key, findings_list in audit_report.prioritized_issues_map.items():
+        if isinstance(findings_list, list):
+            all_findings.extend(findings_list)
             
-        ordered_nodes.append(
-            BlueprintNode(
-                node_id=uuid4(),
-                chunk_id=chunk.chunk_id,
-                chronological_execution_order=idx,
-                assigned_action_type=action_type,
-                remediation_instruction_payload=remediation_payload
-            )
-        )
+    # Sort findings by chunk_id to maintain deterministic ordering
+    all_findings.sort(key=lambda f: str(f.chunk_id))
+    
+    for idx, finding in enumerate(all_findings):
+        action_type = map_finding_to_action(finding)
         
-    return Blueprint(
-        blueprint_id=uuid4(),
-        manuscript_id=manuscript_id,
-        associated_report_id=report_id,
+        node = BlueprintNode(
+            node_id=uuid4(),
+            blueprint_id=blueprint_id,
+            chunk_id=finding.chunk_id,
+            chronological_execution_order=idx + 1,
+            assigned_action_type=action_type,
+            remediation_instruction_payload=f"[{action_type.upper()}] {finding.diagnostic_critique} Guideline: {finding.proposed_remediation_guideline}"
+        )
+        ordered_nodes.append(node)
+        
+    blueprint = Blueprint(
+        blueprint_id=blueprint_id,
+        manuscript_id=audit_report.manuscript_id,
+        associated_report_id=audit_report.report_id,
         ordered_nodes=ordered_nodes
     )
-
-def compute_git_diff(original_text: str, revised_text: str) -> str:
-    diff = difflib.unified_diff(
-        original_text.splitlines(keepends=True),
-        revised_text.splitlines(keepends=True),
-        fromfile='original',
-        tofile='revised'
-    )
-    return "".join(diff)
-
-def generate_rewrite_unit(blueprint_id, node: BlueprintNode, chunk: ManuscriptChunk, target_tone: str) -> RewriteUnit:
-    if node.assigned_action_type == "keep":
-        return RewriteUnit(
-            blueprint_id=blueprint_id,
-            node_id=node.node_id,
-            source_chunk_id=chunk.chunk_id,
-            version_history_array=[{"v1_original": chunk.raw_text_content}],
-            current_approved_text=chunk.raw_text_content,
-            differential_patch_data="",
-            is_human_signed_off=True
-        )
-        
-    prompt = f"""You are an expert editorial writer. Revise the following text according to these guidelines:
-Guidance: {node.remediation_instruction_payload}
-Target Tone: {target_tone}
-
-Original Text:
-{chunk.raw_text_content}
-
-Return ONLY the revised text string without explanation.
-"""
     
-    revised_text = chunk.raw_text_content
-    openrouter_key = st.secrets.get("OPENROUTER_API_KEY")
-    gemini_key = st.secrets.get("GEMINI_API_KEY")
-    
-    if openrouter_key:
-        try:
-            client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_key)
-            res = client.chat.completions.create(model="openrouter/free", messages=[{"role": "user", "content": prompt}])
-            revised_text = res.choices[0].message.content.strip()
-        except Exception:
-            pass
-    elif gemini_key:
-        try:
-            genai.configure(api_key=gemini_key)
-            model = genai.GenerativeModel("gemini-2.5-flash")
-            res = model.generate_content(prompt)
-            revised_text = res.text.strip()
-        except Exception:
-            pass
-            
-    patch_diff = compute_git_diff(chunk.raw_text_content, revised_text)
-    
-    return RewriteUnit(
-        blueprint_id=blueprint_id,
-        node_id=node.node_id,
-        source_chunk_id=chunk.chunk_id,
-        version_history_array=[
-            {"version": "1", "type": "ai_draft", "content": revised_text}
-        ],
-        current_approved_text=revised_text,
-        differential_patch_data=patch_diff,
-        is_human_signed_off=False
-    )
+    logger.info(f"Generated Blueprint {blueprint_id} with {len(ordered_nodes)} execution nodes.")
+    return blueprint

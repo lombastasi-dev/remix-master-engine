@@ -109,3 +109,30 @@ async def test_async_batch_processing():
     
     assert report is not None
     assert len(report.prioritized_issues_map["medium"]) == 10
+
+
+@pytest.mark.asyncio
+async def test_blueprint_generation():
+    """Test Layer 2 Blueprint Engine generation from AuditReport."""
+    from src.analysis.gateway import process_manuscript_chunks_async
+    from src.planning.blueprints import generate_transformation_blueprint
+    
+    manuscript_id = uuid4()
+    chunks = [
+        ManuscriptChunk(
+            manuscript_id=manuscript_id,
+            chunk_index=i,
+            raw_text_content=f"Sample sentence {i} with passive voice." if i % 2 == 0 else f"Active sentence {i}.",
+            chunk_sha256="b" * 64
+        )
+        for i in range(10)
+    ]
+    
+    audit_report = await process_manuscript_chunks_async(chunks)
+    blueprint = generate_transformation_blueprint(audit_report)
+    
+    assert blueprint is not None
+    assert blueprint.manuscript_id == manuscript_id
+    assert len(blueprint.ordered_nodes) == 5  # 5 chunks with passive voice findings
+    assert blueprint.ordered_nodes[0].chronological_execution_order == 1
+    assert "REVISE" in blueprint.ordered_nodes[0].remediation_instruction_payload
