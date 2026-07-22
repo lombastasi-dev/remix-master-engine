@@ -6,3 +6,5 @@ google-generativeai
 openai
 fpdf2
 ebooklib
+
+edge-tts
