@@ -1,6 +1,7 @@
 import io
 import re
 import json
+import zipfile
 import asyncio
 import streamlit as st
 import docx
@@ -77,6 +78,15 @@ def create_cover_image(title, subtitle, author, domain_name):
     img.save(buf, format='PNG')
     buf.seek(0)
     return buf
+
+def build_zip_package(manuscript_text, metadata_dict, cover_bytes):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        zip_file.writestr('master_manuscript.md', manuscript_text)
+        zip_file.writestr('kdp_metadata.json', json.dumps(metadata_dict, indent=2))
+        zip_file.writestr('cover_blueprint.png', cover_bytes)
+    zip_buffer.seek(0)
+    return zip_buffer
 
 async def generate_audio_preview(text_sample, voice='en-US-ChristopherNeural'):
     communicate = edge_tts.Communicate(text_sample, voice)
@@ -161,7 +171,6 @@ if uploaded_files:
     if 'generated_text' in st.session_state:
         st.subheader('✨ Final Compiled Master Manuscript')
         st.markdown(st.session_state['generated_text'][:3000] + '\n\n*(Preview truncated for display...)*')
-        st.download_button('💾 Download Full Master Manuscript (.md)', data=st.session_state['generated_text'], file_name='master_manuscript.md')
         
         st.divider()
         st.subheader('📊 Interactive Quality & Readability Review')
@@ -185,24 +194,28 @@ if uploaded_files:
         st.divider()
         st.subheader('🎨 Cover Blueprint & KDP Metadata Package')
         col_cov1, col_cov2 = st.columns([1, 2])
+        cover_buf = create_cover_image(book_title, book_subtitle, author_name, profile.display_name)
+        metadata_pkg = {
+            'title': book_title,
+            'subtitle': book_subtitle,
+            'author': author_name,
+            'publisher': publisher_name,
+            'domain_niche': profile.display_name,
+            'primary_focus': profile.primary_focus,
+            'target_tone': target_tone,
+            'suggested_keywords': [profile.display_name, 'Guide', 'Handbook', 'Mastery', 'Strategy'],
+            'language': 'English'
+        }
+        
         with col_cov1:
-            cover_buf = create_cover_image(book_title, book_subtitle, author_name, profile.display_name)
             st.image(cover_buf, caption='Generated Front Cover Blueprint', use_container_width=True)
-            st.download_button('📥 Download Cover Image (.png)', data=cover_buf.getvalue(), file_name='cover_blueprint.png', mime='image/png')
         with col_cov2:
-            metadata_pkg = {
-                'title': book_title,
-                'subtitle': book_subtitle,
-                'author': author_name,
-                'publisher': publisher_name,
-                'domain_niche': profile.display_name,
-                'primary_focus': profile.primary_focus,
-                'target_tone': target_tone,
-                'suggested_keywords': [profile.display_name, 'Guide', 'Handbook', 'Mastery', 'Strategy'],
-                'language': 'English'
-            }
             st.json(metadata_pkg)
-            st.download_button('📥 Download KDP Metadata Package (.json)', data=json.dumps(metadata_pkg, indent=2), file_name='kdp_metadata.json', mime='application/json')
+        
+        st.divider()
+        st.subheader('📦 Download Publishing Bundle')
+        zip_buf = build_zip_package(st.session_state['generated_text'], metadata_pkg, cover_buf.getvalue())
+        st.download_button('📦 Download Complete Publishing Bundle (.zip)', data=zip_buf.getvalue(), file_name='publishing_package.zip', mime='application/zip', type='primary')
         
         st.divider()
         st.subheader('🎙️ Audiobook Sample Preview (TTS)')
