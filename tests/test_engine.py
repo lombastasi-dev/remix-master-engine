@@ -61,12 +61,10 @@ def test_bundle_assembly(tmp_path):
         is_human_signed_off=True
     )
     
-    # 1. Assemble text
     compiled_text, is_complete = assemble_master_manuscript(manuscript, [unit])
     assert is_complete is True
     assert "Revised and polished text." in compiled_text
     
-    # 2. Build metadata JSON string
     metadata = {
         "title": manuscript.title,
         "domain_profile": "Tech Non-Fiction",
@@ -74,14 +72,12 @@ def test_bundle_assembly(tmp_path):
     }
     metadata_json = json.dumps(metadata, indent=2)
     
-    # 3. Compile Zip bytes
     zip_bytes = build_publishing_bundle(
         manuscript=manuscript,
         compiled_text=compiled_text,
         metadata_json=metadata_json
     )
     
-    # 4. Save and inspect zip file
     output_zip_path = os.path.join(tmp_path, "test_bundle.zip")
     with open(output_zip_path, "wb") as f:
         f.write(zip_bytes)
@@ -92,7 +88,6 @@ def test_bundle_assembly(tmp_path):
         file_list = z.namelist()
         assert any(f.endswith(".md") for f in file_list)
         assert any("metadata" in f or "provenance" in f for f in file_list)
-
 
 @pytest.mark.asyncio
 async def test_async_batch_processing():
@@ -113,4 +108,4 @@ async def test_async_batch_processing():
     report = await process_manuscript_chunks_async(chunks, max_concurrency=5)
     
     assert report is not None
-    assert len(getattr(report, 'prioritized_issues_map')) == 10
+    assert len(report.prioritized_issues_map["medium"]) == 10

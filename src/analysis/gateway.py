@@ -42,11 +42,9 @@ async def process_manuscript_chunks_async(
             report_id=uuid4(),
             manuscript_id=uuid4(),
             global_lcvi_score=10.0,
-            overall_score=100.0,
             domain_scores={"style": 10.0},
             executive_summary="No content provided to audit.",
-            prioritized_issues_map={"medium": []},
-            prioritized_issues_map=[]
+            prioritized_issues_map={"medium": []}
         )
         
     report_id = uuid4()
@@ -61,11 +59,9 @@ async def process_manuscript_chunks_async(
         report_id=report_id,
         manuscript_id=chunks[0].manuscript_id,
         global_lcvi_score=8.85,
-        overall_score=88.5,
         domain_scores={"style": 8.85},
         executive_summary="Batch audit completed across all manuscript chunks.",
-        prioritized_issues_map={"medium": all_findings},
-        prioritized_issues_map=all_findings
+        prioritized_issues_map={"medium": all_findings}
     )
     
     return report
