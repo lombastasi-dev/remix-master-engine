@@ -92,3 +92,25 @@ def test_bundle_assembly(tmp_path):
         file_list = z.namelist()
         assert any(f.endswith(".md") for f in file_list)
         assert any("metadata" in f or "provenance" in f for f in file_list)
+
+
+@pytest.mark.asyncio
+async def test_async_batch_processing():
+    """Test parallel chunk processing in Layer 1 Quality Kernel Gateway."""
+    from src.analysis.gateway import process_manuscript_chunks_async
+    
+    manuscript_id = uuid4()
+    chunks = [
+        ManuscriptChunk(
+            manuscript_id=manuscript_id,
+            chunk_index=i,
+            raw_text_content=f"Sample sentence {i} with passive voice." if i % 2 == 0 else f"Active sentence {i}.",
+            chunk_sha256="a" * 64
+        )
+        for i in range(20)
+    ]
+    
+    report = await process_manuscript_chunks_async(chunks, max_concurrency=5)
+    
+    assert report is not None
+    assert len(report.findings) == 10
