@@ -89,6 +89,25 @@ class PublicationPDF(FPDF):
         self.set_text_color(128, 128, 128)
         self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
 
+def sanitize_text_for_pdf(text):
+    """Replace common non-Latin-1 Unicode characters with standard ASCII equivalents."""
+    replacements = {
+        "•": "-",
+        "—": "--",
+        "–": "-",
+        "“": '"',
+        "”": '"',
+        "‘": "'",
+        "’": "'",
+        "…": "...",
+        "™": "(TM)",
+        "®": "(R)",
+        "©": "(C)"
+    }
+    for orig, repl in replacements.items():
+        text = text.replace(orig, repl)
+    return text.encode('latin-1', 'replace').decode('latin-1')
+
 def create_pdf_from_markdown(text, domain_name):
     """Convert generated markdown into a publication PDF using FPDF2 cleanly."""
     pdf = PublicationPDF(domain_name)
@@ -102,8 +121,8 @@ def create_pdf_from_markdown(text, domain_name):
             pdf.ln(3)
             continue
             
-        line_clean = line_s.encode('latin-1', 'replace').decode('latin-1')
-        pdf.set_x(pdf.l_margin) # Reset X position to avoid horizontal space calculation errors
+        line_clean = sanitize_text_for_pdf(line_s)
+        pdf.set_x(pdf.l_margin)
 
         if line_clean.startswith("# "):
             pdf.set_font("Helvetica", "B", 16)
@@ -124,7 +143,7 @@ def create_pdf_from_markdown(text, domain_name):
         elif line_clean.startswith("- ") or line_clean.startswith("* "):
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(40, 40, 40)
-            pdf.multi_cell(pdf.epw, 6, f"   • {line_clean[2:]}")
+            pdf.multi_cell(pdf.epw, 6, f"   - {line_clean[2:]}")
         else:
             pdf.set_font("Helvetica", "", 10)
             pdf.set_text_color(40, 40, 40)
