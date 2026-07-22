@@ -118,6 +118,39 @@ domain_choice = st.sidebar.selectbox(
 profile = get_domain_profile(domain_choice)
 st.sidebar.success(f"Active Domain: **{profile.display_name}**")
 
+st.sidebar.divider()
+st.sidebar.header("⚙️ Custom Audit Rules & Style")
+
+target_word_count = st.sidebar.number_input(
+    "Target Word Count Threshold",
+    min_value=100,
+    max_value=100000,
+    value=1500,
+    step=250,
+    help="Set the minimum target word count for compliance check."
+)
+
+target_tone = st.sidebar.selectbox(
+    "Target Writing Tone & Style",
+    options=["Executive Brief", "Conversational & Engaging", "Academic & Formal", "Technical Direct", "Authoritative Guide"],
+    index=0
+)
+
+custom_elements_input = st.sidebar.text_input(
+    "Custom Structural Elements (Comma-separated)",
+    value="",
+    placeholder="e.g., Key Takeaways, Action Steps, FAQs",
+    help="Add additional custom section headings to check for in the audit."
+)
+
+# Merge default profile elements with user custom elements
+all_required_elements = list(profile.required_elements)
+if custom_elements_input.strip():
+    user_customs = [e.strip() for e in custom_elements_input.split(",") if e.strip()]
+    for c_elem in user_customs:
+        if c_elem not in all_required_elements:
+            all_required_elements.append(c_elem)
+
 # Main Dashboard - Domain Overview
 st.subheader("🎯 Active Domain Overview")
 
@@ -125,12 +158,13 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     st.metric(label="Selected Niche", value=profile.display_name)
-    st.metric(label="Engine Environment", value="Streamlit Cloud")
+    st.metric(label="Selected Writing Tone", value=target_tone)
 
 with col2:
     st.markdown(f"**Primary Focus:** {profile.primary_focus}")
-    st.markdown("**Required Structural Elements:**")
-    st.markdown(" ".join([f"`{elem}`" for elem in profile.required_elements]))
+    st.markdown(f"**Target Word Count:** `{target_word_count:,} words`")
+    st.markdown("**Active Audit Elements:**")
+    st.markdown(" ".join([f"`{elem}`" for elem in all_required_elements]))
 
 st.divider()
 
@@ -162,12 +196,15 @@ if uploaded_files:
         total_word_count = len(combined_text.split())
 
     # Batch Metrics
-    ic1, ic2, ic3 = st.columns(3)
+    ic1, ic2, ic3, ic4 = st.columns(4)
     with ic1:
         st.metric("Total Batch Files", len(uploaded_files))
     with ic2:
         st.metric("Aggregate Word Count", f"{total_word_count:,}")
     with ic3:
+        word_pct = min(100, int((total_word_count / target_word_count) * 100))
+        st.metric("Word Count Progress", f"{word_pct}%")
+    with ic4:
         st.metric("Batch Status", "Aggregated & Ready")
 
     # File Breakdown Expander
@@ -181,7 +218,7 @@ if uploaded_files:
     # Structural Audit
     st.subheader(f"📊 Structural Audit — {profile.display_name}")
     
-    audit_results, readiness_score = audit_manuscript(combined_text, profile.required_elements)
+    audit_results, readiness_score = audit_manuscript(combined_text, all_required_elements)
     
     ac1, ac2 = st.columns([1, 2])
     
@@ -201,15 +238,17 @@ if uploaded_files:
 
     st.divider()
 
-    # Live Generation Engine with OpenRouter + Gemini Fallback
+    # Live Generation Engine
     st.subheader("🚀 Autonomous Adaptation Engine")
-    st.write("Generate missing structural components and domain-specific publishing outputs for this batch.")
+    st.write(f"Generate missing structural components in **{target_tone}** tone.")
 
     if st.button("⚡ Run Domain-Adaptive Remastering", type="primary"):
         prompt = f"""You are an expert publishing editor specializing in {profile.display_name}.
         
 The target focus is: {profile.primary_focus}
-The required structural elements for this niche are: {', '.join(profile.required_elements)}
+The required tone and style is: {target_tone}
+The required target word count threshold is: {target_word_count} words
+The required structural elements for this niche are: {', '.join(all_required_elements)}
 The following elements were flagged as MISSING across the batch: {', '.join(missing_elements) if missing_elements else 'None'}
 
 Here is the aggregated text from {len(uploaded_files)} manuscript files:
@@ -217,7 +256,7 @@ Here is the aggregated text from {len(uploaded_files)} manuscript files:
 {combined_text[:5000]}
 ---
 
-Please generate an adapted executive summary, harmonize chapter transitions across the batch, and draft any missing structural components formatted in clean Markdown for immediate publishing preparation.
+Please generate an adapted executive summary in the requested tone ({target_tone}), harmonize chapter transitions, and draft any missing structural components formatted in clean Markdown.
 """
 
         with st.spinner("AI Engine generating batch domain adaptation..."):
