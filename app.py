@@ -13,16 +13,16 @@ st.set_page_config(
     layout="wide"
 )
 
-def extract_text_from_file(uploaded_file):
+def extract_text_from_file(file):
     """Extract raw text from uploaded DOCX or PDF file."""
     text = ""
-    file_type = uploaded_file.name.split(".")[-1].lower()
+    file_type = file.name.split(".")[-1].lower()
     
     if file_type == "docx":
-        doc = docx.Document(uploaded_file)
+        doc = docx.Document(file)
         text = "\n".join([paragraph.text for paragraph in doc.paragraphs if paragraph.text.strip()])
     elif file_type == "pdf":
-        reader = pypdf.PdfReader(uploaded_file)
+        reader = pypdf.PdfReader(file)
         text = "\n".join([page.extract_text() or "" for page in reader.pages])
         
     return text
@@ -101,47 +101,59 @@ with col2:
 
 st.divider()
 
-# Main Dashboard - Ingestion Setup
-st.subheader("📄 Manuscript Ingestion & Parsing")
+# Main Dashboard - Batch Ingestion Setup
+st.subheader("📦 Batch Manuscript Ingestion & Parsing")
 
-uploaded_file = st.file_uploader(
-    "Upload manuscript file (.docx or .pdf)",
+uploaded_files = st.file_uploader(
+    "Upload manuscript files (.docx or .pdf)",
     type=["docx", "pdf"],
-    help="Upload your document to begin ingestion and domain-adaptive auditing."
+    accept_multiple_files=True,
+    help="Upload single or multiple chapter files to analyze in batch."
 )
 
-if uploaded_file is not None:
-    st.success(f"File **{uploaded_file.name}** uploaded successfully ({uploaded_file.size / 1024:.1f} KB).")
+if uploaded_files:
+    st.success(f"**{len(uploaded_files)} file(s)** uploaded for batch processing.")
     
-    with st.spinner("Extracting and normalizing manuscript text..."):
-        raw_text = extract_text_from_file(uploaded_file)
-        char_count = len(raw_text)
-        word_count = len(raw_text.split())
+    combined_text = ""
+    file_summaries = []
 
-    # Ingestion Stats
+    with st.spinner("Extracting and aggregating batch texts..."):
+        for file in uploaded_files:
+            file_text = extract_text_from_file(file)
+            f_words = len(file_text.split())
+            f_chars = len(file_text)
+            file_summaries.append({"filename": file.name, "words": f_words, "chars": f_chars})
+            combined_text += f"\n\n--- FILE: {file.name} ---\n\n" + file_text
+
+        total_char_count = len(combined_text)
+        total_word_count = len(combined_text.split())
+
+    # Batch Metrics
     ic1, ic2, ic3 = st.columns(3)
     with ic1:
-        st.metric("Total Character Count", f"{char_count:,}")
+        st.metric("Total Batch Files", len(uploaded_files))
     with ic2:
-        st.metric("Total Word Count", f"{word_count:,}")
+        st.metric("Aggregate Word Count", f"{total_word_count:,}")
     with ic3:
-        st.metric("Ingestion Status", "Parsed & Ready")
+        st.metric("Batch Status", "Aggregated & Ready")
 
-    # Text Preview Expander
-    with st.expander("📖 Manuscript Text Preview (First 1,500 characters)", expanded=False):
-        st.text_area("Raw Text Sample", raw_text[:1500] + ("..." if len(raw_text) > 1500 else ""), height=200)
+    # File Breakdown Expander
+    with st.expander("📂 Batch Files Breakdown & Preview", expanded=False):
+        for f_info in file_summaries:
+            st.write(f"📄 **{f_info['filename']}** — {f_info['words']:,} words ({f_info['chars']:,} chars)")
+        st.text_area("Aggregated Batch Text Sample", combined_text[:2000] + ("..." if len(combined_text) > 2000 else ""), height=200)
 
     st.divider()
 
     # Structural Audit
     st.subheader(f"📊 Structural Audit — {profile.display_name}")
     
-    audit_results, readiness_score = audit_manuscript(raw_text, profile.required_elements)
+    audit_results, readiness_score = audit_manuscript(combined_text, profile.required_elements)
     
     ac1, ac2 = st.columns([1, 2])
     
     with ac1:
-        st.metric(label="Domain Compliance Score", value=f"{readiness_score}%")
+        st.metric(label="Batch Compliance Score", value=f"{readiness_score}%")
         st.progress(readiness_score / 100)
         
     with ac2:
@@ -158,7 +170,7 @@ if uploaded_file is not None:
 
     # Live Generation & Export Engine
     st.subheader("🚀 Autonomous Adaptation Engine")
-    st.write("Generate missing structural components and domain-specific publishing outputs.")
+    st.write("Generate missing structural components and domain-specific publishing outputs for this batch.")
 
     if st.button("⚡ Run Domain-Adaptive Remastering", type="primary"):
         api_key = st.secrets.get("GEMINI_API_KEY")
@@ -174,17 +186,17 @@ if uploaded_file is not None:
                 
 The target focus is: {profile.primary_focus}
 The required structural elements for this niche are: {', '.join(profile.required_elements)}
-The following elements were flagged as MISSING: {', '.join(missing_elements) if missing_elements else 'None'}
+The following elements were flagged as MISSING across the batch: {', '.join(missing_elements) if missing_elements else 'None'}
 
-Here is the raw manuscript draft:
+Here is the aggregated text from {len(uploaded_files)} manuscript files:
 ---
-{raw_text[:4000]}
+{combined_text[:5000]}
 ---
 
-Please generate an adapted executive summary and draft the missing structural components formatted in clean Markdown for immediate publishing preparation.
+Please generate an adapted executive summary, harmonize chapter transitions across the batch, and draft any missing structural components formatted in clean Markdown for immediate publishing preparation.
 """
 
-                with st.spinner("AI Engine generating domain adaptation..."):
+                with st.spinner("AI Engine generating batch domain adaptation..."):
                     response = model.generate_content(prompt)
                     st.session_state['generated_text'] = response.text
                     
@@ -201,25 +213,23 @@ Please generate an adapted executive summary and draft the missing structural co
         ec1, ec2 = st.columns(2)
         
         with ec1:
-            # Word Document Download
             docx_buffer = create_docx_from_markdown(st.session_state['generated_text'], profile.display_name)
             st.download_button(
                 label="📄 Download as Word Document (.docx)",
                 data=docx_buffer,
-                file_name=f"remastered_{domain_choice.value}.docx",
+                file_name=f"remastered_{domain_choice.value}_batch.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 use_container_width=True
             )
             
         with ec2:
-            # Markdown Download
             st.download_button(
                 label="📝 Download as Markdown (.md)",
                 data=st.session_state['generated_text'],
-                file_name=f"remastered_{domain_choice.value}.md",
+                file_name=f"remastered_{domain_choice.value}_batch.md",
                 mime="text/markdown",
                 use_container_width=True
             )
 
 else:
-    st.info("Please upload a `.docx` or `.pdf` manuscript file to proceed.")
+    st.info("Please upload one or more `.docx` / `.pdf` manuscript files to proceed.")
