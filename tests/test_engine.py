@@ -136,3 +136,42 @@ async def test_blueprint_generation():
     assert len(blueprint.ordered_nodes) == 5  # 5 chunks with passive voice findings
     assert blueprint.ordered_nodes[0].chronological_execution_order == 1
     assert "REVISE" in blueprint.ordered_nodes[0].remediation_instruction_payload
+
+
+@pytest.mark.asyncio
+async def test_worker_execution_and_diffs():
+    """Test Layer 3 execution worker rewriting and differential patch generation."""
+    from src.execution.workers import execute_blueprint_batch_async, generate_differential_patch
+    
+    # Test diff generator
+    diff = generate_differential_patch("Sample with passive voice.", "Sample actively reframed.")
+    assert "baseline_chunk.txt" in diff
+    assert "-Sample with passive voice." in diff
+    assert "+Sample actively reframed." in diff
+    
+    # Setup test entities
+    manuscript_id = uuid4()
+    blueprint_id = uuid4()
+    chunk = ManuscriptChunk(
+        manuscript_id=manuscript_id,
+        chunk_index=0,
+        raw_text_content="Sample sentence 0 with passive voice.",
+        chunk_sha256="c" * 64
+    )
+    
+    node = BlueprintNode(
+        node_id=uuid4(),
+        blueprint_id=blueprint_id,
+        chunk_id=chunk.chunk_id,
+        chronological_execution_order=1,
+        assigned_action_type="revise",
+        remediation_instruction_payload="[REVISE] Passive voice detected."
+    )
+    
+    chunks_map = {str(chunk.chunk_id): chunk}
+    units = await execute_blueprint_batch_async([node], chunks_map, auto_sign_off=True)
+    
+    assert len(units) == 1
+    assert units[0].is_human_signed_off is True
+    assert "actively reframed" in units[0].current_approved_text
+    assert len(units[0].differential_patch_data) > 0
