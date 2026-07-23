@@ -175,3 +175,23 @@ async def test_worker_execution_and_diffs():
     assert units[0].is_human_signed_off is True
     assert "actively reframed" in units[0].current_approved_text
     assert len(units[0].differential_patch_data) > 0
+
+
+def test_layer0_ingestion_and_provenance():
+    """Test Layer 0 extraction, normalization, boundary chunking, and SHA-256 provenance."""
+    from src.ingestion.chunkers import ingest_document_payload, compute_sha256
+    
+    sample_text = "Paragraph 1 baseline content.\n\nParagraph 2 baseline content."
+    raw_bytes = sample_text.encode('utf-8')
+    
+    manuscript, chunks = ingest_document_payload(
+        file_bytes=raw_bytes,
+        file_extension="txt",
+        title="Test Manuscript Title"
+    )
+    
+    assert manuscript is not None
+    assert manuscript.title == "Test Manuscript Title"
+    assert manuscript.raw_sha256 == compute_sha256(sample_text)
+    assert len(chunks) == 1
+    assert chunks[0].chunk_sha256 == compute_sha256(sample_text)
