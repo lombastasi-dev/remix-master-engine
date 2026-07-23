@@ -1,7 +1,7 @@
 import difflib
 import logging
 from typing import List, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 from src.models.schemas import BlueprintNode, ManuscriptChunk, RewriteUnit
 
 logger = logging.getLogger("ExecutionWorkerEngine")
@@ -23,6 +23,7 @@ def generate_differential_patch(original_text: str, modified_text: str) -> str:
 async def execute_rewrite_node_async(
     node: BlueprintNode,
     chunk: ManuscriptChunk,
+    blueprint_id: Optional[UUID] = None,
     auto_sign_off: bool = False
 ) -> RewriteUnit:
     """
@@ -37,9 +38,11 @@ async def execute_rewrite_node_async(
     
     patch_data = generate_differential_patch(chunk.raw_text_content, revised_text)
     
+    resolved_blueprint_id = getattr(node, "blueprint_id", None) or blueprint_id or uuid4()
+    
     unit = RewriteUnit(
         rewrite_unit_id=uuid4(),
-        blueprint_id=node.blueprint_id,
+        blueprint_id=resolved_blueprint_id,
         node_id=node.node_id,
         source_chunk_id=chunk.chunk_id,
         current_approved_text=revised_text,
@@ -53,6 +56,7 @@ async def execute_rewrite_node_async(
 async def execute_blueprint_batch_async(
     nodes: List[BlueprintNode],
     chunks_map: dict[str, ManuscriptChunk],
+    blueprint_id: Optional[UUID] = None,
     auto_sign_off: bool = False
 ) -> List[RewriteUnit]:
     """Executes a batch of BlueprintNodes in task graph order."""
@@ -62,7 +66,12 @@ async def execute_blueprint_batch_async(
     for node in sorted_nodes:
         chunk = chunks_map.get(str(node.chunk_id))
         if chunk:
-            unit = await execute_rewrite_node_async(node, chunk, auto_sign_off=auto_sign_off)
+            unit = await execute_rewrite_node_async(
+                node, 
+                chunk, 
+                blueprint_id=blueprint_id, 
+                auto_sign_off=auto_sign_off
+            )
             units.append(unit)
             
     return units
