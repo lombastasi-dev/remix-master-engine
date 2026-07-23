@@ -41,7 +41,7 @@ async def execute_rewrite_node_async(
     resolved_blueprint_id = getattr(node, "blueprint_id", None) or blueprint_id or uuid4()
     
     unit = RewriteUnit(
-        rewrite_unit_id=uuid4(),
+        unit_id=uuid4(),
         blueprint_id=resolved_blueprint_id,
         node_id=node.node_id,
         source_chunk_id=chunk.chunk_id,
@@ -50,7 +50,7 @@ async def execute_rewrite_node_async(
         is_human_signed_off=auto_sign_off
     )
     
-    logger.info(f"Executed node {node.node_id} -> RewriteUnit {unit.rewrite_unit_id}")
+    logger.info(f"Executed node {node.node_id} -> RewriteUnit {unit.unit_id}")
     return unit
 
 async def execute_blueprint_batch_async(
